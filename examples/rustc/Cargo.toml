@@ -1,0 +1,26 @@
+[package]
+name = "rustc-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# enforces linkage against the most common windows import libraries,
+# mirroring the xwin-test crate
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Environment",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_Graphics_Gdi",
+    "Win32_Networking_WinSock",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+# compiles and links C++ code, exercising the CC/CXX/CFLAGS/LIB environment
+# from rustc.env
+cc = "1"

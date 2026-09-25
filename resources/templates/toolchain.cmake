@@ -59,6 +59,13 @@ else()
   set(CMAKE_SYSTEM_PROCESSOR "arm")
 endif()
 
+# import library paths for the selected architecture, used both by the
+# clang-cl driver and by direct lld-link invocations (CMake links via
+# CMAKE_LINKER directly)
+set(_nixwin_crt_libpath "${NIXWIN_SYSROOT}/VC/Tools/MSVC/${NIXWIN_CRT_VERSION}/lib/${_nixwin_ms_arch}")
+set(_nixwin_um_libpath "${NIXWIN_SYSROOT}/Windows Kits/10/Lib/${NIXWIN_SDK_VERSION}/um/${_nixwin_ms_arch}")
+set(_nixwin_ucrt_libpath "${NIXWIN_SYSROOT}/Windows Kits/10/Lib/${NIXWIN_SDK_VERSION}/ucrt/${_nixwin_ms_arch}")
+
 set(_nixwin_cflags
   "--target=${_nixwin_triple}"
   "/winsysroot \"${NIXWIN_SYSROOT}\""
@@ -68,7 +75,7 @@ string(JOIN " " _nixwin_cflags ${_nixwin_cflags})
 set(CMAKE_C_FLAGS_INIT "${_nixwin_cflags}")
 set(CMAKE_CXX_FLAGS_INIT "${_nixwin_cflags}")
 
-set(CMAKE_EXE_LINKER_FLAGS_INIT "/vfsoverlay:\"${NIXWIN_VFS_OVERLAY}\"")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "/vfsoverlay:\"${NIXWIN_VFS_OVERLAY}\" /libpath:\"${_nixwin_crt_libpath}\" /libpath:\"${_nixwin_um_libpath}\" /libpath:\"${_nixwin_ucrt_libpath}\"")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "${CMAKE_EXE_LINKER_FLAGS_INIT}")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "${CMAKE_EXE_LINKER_FLAGS_INIT}")
 
