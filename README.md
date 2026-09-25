@@ -1,9 +1,15 @@
+<center><img src="resources/nixwin.png" width="250rem"/></center>
+
+# <center>nix<font color=#0175ec>win</font></center>
+
+Create reproducible windows sysroots ready for cross-compiling C/C++/Rust with integration for CMake, LLVM and Cargo within seconds.
+
 - want to cross-compile c/c++/rust targeting windows on unix hosts?
 - want faster CI compilation times when compiling for windows?
 
-Nixwin comes to the rescue! Create reproducible windows sysroots ready for cross-compiling C/C++/Rust with integration for CMake, LLVM and Cargo within seconds.
+Nixwin comes to the rescue! 
 
-The windows sysroot files are downloaded from the Visual Studio manifest and composed using [xwin]. Nixwin adds efficiency with a caching layer, consistency through configuration and improves UX by providing integration with common tools.
+The windows sysroot files are downloaded from the Visual Studio manifest and composed using [xwin]. Nixwin adds efficiency with a caching layer, consistency through configuration and improves UX by providing integration with common developer tools.
 
 # Quickstart
 
@@ -58,8 +64,6 @@ A windows sysroot contains necessary sources and libraries to cross-compile c/c+
 - sysroots reside in `$NIXWIN_DATA/sysroots` and symlink against the shared cache `$NIXWIN_CACHE`. 
 - every sysroot has a tag assigned for identification which resolves to `$NIXWIN_DATA/sysroots/$TAG`. 
 
-### what's included?
-
 ### managing sysroots
 
 ```sh
@@ -77,55 +81,33 @@ nixwin inspect 17
 nixwin rm 17
 ```
 
-<details><summary>
+### what's included?
 
-### components
+The following windows components are provided within the sysroot. Component versions default to the latest versions in the selected vs manifest.
+By default, components only include resources necessary for release builds. Debug libraries/headers can be installed using the `debug` feature.
 
-Essential build components are included in the winsysroot. *Expand for included components table*.
+| component | feature | description | notes |
+|---|---|---|---|
+| **SDK** | - | Windows SDK headers & libraries | *required, contains resources to build for release* |
+| **CRT** | - | Windows CRT headers & libraries | *required, contains resources to build for release* |
+| **SDK/CRT** | `debug` | Include debug libraries and symbols for SDK/CRT | *needed to compile debug builds* |
+| **VCR** | `debug` | Include VCR debug runtime libraries | *needed to run debug builds in wine* |
+| **ATL** | `atl` | Include [ATL templates](https://learn.microsoft.com/en-us/cpp/atl/active-template-library-atl-concepts) |
 
-</summary>
-
-| component | description |
-|---|---|
-| `CRT` | C runtime headers & libraries |
-| `SDK` | Windows SDK headers & libraries |
-| `VCR` | Visual C runtime libraries (ships debug dlls required for running debug profiles under wine) |
-
-</details>
-
-<details><summary>
-
-### features
-
-Features are optional components that can be added to a sysroot.
-
-</summary>
-
-| feature | description |
-|---|---|
-| `debug` | Include debug libraries, pdb files and VCR |
-| `atl` | Include windows ATL headers & libraries |
-
-</details>
-
-
-<details><summary>
+The `debug` feature is enabled by default unless a CI environment is detected.
 
 ### tool integration
 
-Nixwin adds convenience configurations to integrate the windows sysroot with common developer tools. *Expand to view integration file list*.
-
-</summary>
+Nixwin adds convenience configurations to integrate the windows sysroot with common developer tools.
 
 | file | tools | details |
 |---|---|---|
-| `vfsoverlay.json` | clang/lld-link/cmake | A vfsoverlay file for the windows sysroot which avoids issues with filesystem case-sensitivity. |
+| `vfsoverlay.json` | clang/lld-link | A vfsoverlay file for the windows sysroot which avoids issues with filesystem case-sensitivity. |
+| `llvm.env` | clang/lld-link | Configures clang/lld-link using `CFLAGS`/`CXXFLAGS`. |
 | `toolchain.cmake` | cmake | Provides a cross-compilation toolchain for CMake using llvm. |
-| `llvm.env` | clang/lld-link | Integrates the windows sysroot into clang/lld-link using environment variables. |
-| `cmake.env` | cmake | Integrates the windows sysroot into CMake usinig environment variables. |
-| `rustc.env` | rustc/cargo | Integrates the windows sysroot into rustc/cargo using environment variables. |
+| `cmake.env` | cmake | Configures cmake using `toolchain.cmake` and `vfsoverlay.json`. |
+| `rustc.env` | rustc/cargo | Configures rustc using `RUSTFLAGS`/`CFLAGS`/`CXXFLAGS` |
 
-</details>
 
 <details><summary><b>environment variables</b></summary>
 

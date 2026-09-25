@@ -1,2 +1,5 @@
 /target
 /.nixwin
+build/
+target/
+home/
