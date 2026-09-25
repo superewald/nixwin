@@ -113,10 +113,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
-name = "cab"
-version = "0.6.0"
+name = "cab-superewald"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "171228650e6721d5acc0868a462cd864f49ac5f64e4a42cde270406e64e404d2"
+checksum = "31adccfda4222f25d9a430edbc60c414c569faf040c90cac5f7bd0978633b822"
 dependencies = [
  "byteorder",
  "flate2",
@@ -1886,7 +1886,7 @@ version = "0.10.0"
 dependencies = [
  "anyhow",
  "bytes",
- "cab",
+ "cab-superewald",
  "camino",
  "clap",
  "cli-table",
