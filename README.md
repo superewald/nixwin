@@ -37,24 +37,16 @@ The windows sysroot files are downloaded from the Visual Studio manifest and com
     > [!NOTE]
     > Pulls the latest SDK/CRT files of the VS 17 manifest and compose them into a llvm-compatible [windows sysroot](#windows-sysroots) layout at `$HOME/.local/share/nixwin/sysroots/17`. *See [install command](#install) docs for details.*
 
-1. **Cross-compile**: (clang 15+, lld-link 15+)
-    - **clang-cl / lld-link**
-        ```sh
-        source $NIXWIN_SYSROOT/llvm.env
-        clang-cl examples/tux_on_win.cpp $NIXWIN_LLVM_FLAGS
-        lld-link examples/tux_on_win.o $NIXWIN_LLVM_FLAGS
-        ```
-    - **CMake**
-        ```sh
-        source $NIXWIN_SYSROOT/cmake.env
-        cmake -S examples/cmake -B build/win64 -DTARGET_PLATFORM=x86_64
-        cmake --build build/win64
-        ```
-    - **Rust**
-        ```sh
-        source $NIXWIN_SYSROOT/rustc.env
-        cargo build -C examples/rustc --target x86_64-pc-windows-msvc
-        ```
+1. **Try the [examples](examples/README.md)**: (optional, recommended)
+    ```sh
+    nixwin install 17 --default
+    examples/llvm/build.sh
+    examples/cmake/build.sh
+    examples/rustc/build.sh
+    ```
+
+    > [!NOTE]
+    > Each example cross-compiles the same small program against the sysroot, exercising the emitted [tool integration files](#tool-integration) (`llvm.env`, `toolchain.cmake`, `rustc.env`), and runs it under wine when available.
 
 ## Windows Sysroots
 
