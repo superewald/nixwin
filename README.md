@@ -1,6 +1,6 @@
-<center><img src="resources/nixwin.png" width="250rem"/></center>
-
-# <center>nix<font color=#0175ec>win</font></center>
+<p align="center">
+    <img src="resources/nixwin_alt.png" width="250rem" alt="nixwin" />
+</p>
 
 Create reproducible windows sysroots ready for cross-compiling C/C++/Rust with integration for CMake, LLVM and Cargo within seconds.
 
@@ -13,40 +13,45 @@ The windows sysroot files are downloaded from the Visual Studio manifest and com
 
 # Quickstart
 
-1. **Install nixwin**
-    ```sh
-    curl -o $HOME/.local/bin/nixwin -L \
-        https://github.com/superewald/nixwin/releases/latest/download/nixwin-x86_64-musl
-    ```
-1. **Setup [tool integration]()** *(optional, recommended)*
-    ```sh
-    nixwin setup --wine --cmake
-    ```
+#### 1. Install nixwin
 
-    > [!NOTE]
-    > 
-    > - `nixwin setup` adds `NIXWIN_` env variables to `~/.bashrc`
-    > - `--wine` adds VCR debug libraries to wine prefixes *(required to run debug builds in wine)*
-    > - `--cmake` sets `CMAKE_TOOLCHAIN_FILE` in `~/.bashrc` to a wrapper script that detects [toolchain lockfiles](#lockfiles) (`.nixwin.json`)
+```sh
+curl -o $HOME/.local/bin/nixwin -L \
+    https://github.com/superewald/nixwin/releases/latest/download/nixwin-x86_64-musl
+```
 
-1. **Install sysroot**: 
-    ```sh
-    nixwin install 17
-    ```
+#### 2. Setup [tool integration](#tool-integration) *(optional, recommended)*
 
-    > [!NOTE]
-    > Pulls the latest SDK/CRT files of the VS 17 manifest and compose them into a llvm-compatible [windows sysroot](#windows-sysroots) layout at `$HOME/.local/share/nixwin/sysroots/17`. *See [install command](#install) docs for details.*
+```sh
+nixwin setup --wine --cmake
+```
 
-1. **Try the [examples](examples/README.md)**: (optional, recommended)
-    ```sh
-    nixwin install 17 --default
-    examples/llvm/build.sh
-    examples/cmake/build.sh
-    examples/rustc/build.sh
-    ```
+> [!NOTE]
+> 
+> - `nixwin setup` adds `NIXWIN_` env variables to `~/.bashrc`
+> - `--wine` adds VCR debug libraries to wine prefixes *(required to run debug builds in wine)*
+> - `--cmake` sets `CMAKE_TOOLCHAIN_FILE` in `~/.bashrc` to a wrapper script that detects [toolchain lockfiles](#lockfiles) (`.nixwin.json`)
 
-    > [!NOTE]
-    > Each example cross-compiles the same small program against the sysroot, exercising the emitted [tool integration files](#tool-integration) (`llvm.env`, `toolchain.cmake`, `rustc.env`), and runs it under wine when available.
+#### 3. Install sysroot 
+
+```sh
+nixwin install 17
+```
+
+> [!NOTE]
+> Pulls the latest SDK/CRT files of the VS 17 manifest and compose them into a llvm-compatible [windows sysroot](#windows-sysroots) layout at `$HOME/.local/share/nixwin/sysroots/17`. *See [install command](#install) docs for details.*
+
+#### 4. Try the [examples](examples/README.md) *(optional)*
+
+```sh
+nixwin install 17 --default
+examples/llvm/build.sh
+examples/cmake/build.sh
+examples/rustc/build.sh
+```
+
+> [!NOTE]
+> Each example cross-compiles the same small program against the sysroot, exercising the emitted [tool integration files](#tool-integration) (`llvm.env`, `toolchain.cmake`, `rustc.env`), and runs it under wine when available.
 
 ## Windows Sysroots
 
