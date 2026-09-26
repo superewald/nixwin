@@ -1,13 +1,13 @@
-use crate::config::{self, MachineConfig, SysrootConfig};
-use crate::cmd::Arch;
-use crate::emit;
 use crate::Ctx;
+use crate::cmd::Arch;
+use crate::config::{self, MachineConfig, SysrootConfig};
+use crate::emit;
 use anyhow::{Context as _, Result};
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct SetupOptions {
     /// Configure the CMake integration: write a toolchain wrapper which
-    /// auto-selects the sysroot toolchain when a `nixwin.json` is present,
+    /// auto-selects the sysroot toolchain when a `.nixwin.json` is present,
     /// and persist `CMAKE_TOOLCHAIN_FILE` in your shell rc
     #[arg(long)]
     pub cmake: bool,
@@ -64,7 +64,10 @@ fn shell_rc() -> Option<std::path::PathBuf> {
 
 const CMAKE_RC_MARKER: &str = "# >>> nixwin (cmake) >>>";
 
-fn setup_cmake(ctx: &Ctx, tpl_overrides: &std::collections::BTreeMap<String, std::path::PathBuf>) -> Result<()> {
+fn setup_cmake(
+    ctx: &Ctx,
+    tpl_overrides: &std::collections::BTreeMap<String, std::path::PathBuf>,
+) -> Result<()> {
     let wrapper = ctx.paths.data_dir.join("toolchain.cmake");
     std::fs::write(&wrapper, emit::cmake_wrapper(tpl_overrides)?)
         .with_context(|| format!("unable to write {}", wrapper.display()))?;
@@ -73,9 +76,7 @@ fn setup_cmake(ctx: &Ctx, tpl_overrides: &std::collections::BTreeMap<String, std
     match shell_rc() {
         Some(rc) => {
             let export = format!("export CMAKE_TOOLCHAIN_FILE=\"{}\"", wrapper.display());
-            let block = format!(
-                "{CMAKE_RC_MARKER}\n{export}\n# <<< nixwin (cmake) <<<\n"
-            );
+            let block = format!("{CMAKE_RC_MARKER}\n{export}\n# <<< nixwin (cmake) <<<\n");
 
             let contents = std::fs::read_to_string(&rc).unwrap_or_default();
             if contents.contains(CMAKE_RC_MARKER) {
@@ -88,7 +89,10 @@ fn setup_cmake(ctx: &Ctx, tpl_overrides: &std::collections::BTreeMap<String, std
                 updated.push_str(&block);
                 std::fs::write(&rc, updated)
                     .with_context(|| format!("unable to write {}", rc.display()))?;
-                println!("shell rc: {} (added CMAKE_TOOLCHAIN_FILE export)", rc.display());
+                println!(
+                    "shell rc: {} (added CMAKE_TOOLCHAIN_FILE export)",
+                    rc.display()
+                );
             }
         }
         None => {
@@ -102,18 +106,19 @@ fn setup_cmake(ctx: &Ctx, tpl_overrides: &std::collections::BTreeMap<String, std
     Ok(())
 }
 
-fn setup_wine(
-    ctx: &Ctx,
-    wine_prefix: Option<std::path::PathBuf>,
-) -> Result<()> {
+fn setup_wine(ctx: &Ctx, wine_prefix: Option<std::path::PathBuf>) -> Result<()> {
     let prefix = wine_prefix
-        .or_else(|| std::env::var("WINEPREFIX").ok().map(std::path::PathBuf::from))
+        .or_else(|| {
+            std::env::var("WINEPREFIX")
+                .ok()
+                .map(std::path::PathBuf::from)
+        })
         .or_else(|| std::env::home_dir().map(|home| home.join(".wine")))
         .context("unable to determine wine prefix, specify it with --wine-prefix")?;
 
     let tag = crate::cmd::resolve_tag(None, ctx)?;
-    let cfg: SysrootConfig = config::load_json(&ctx.paths.tag_dir(&tag).join("nixwin.json"))?
-        .with_context(|| format!("sysroot '{tag}' has no nixwin.json, is it installed?"))?;
+    let cfg: SysrootConfig = config::load_json(&ctx.paths.lockfile(&tag))?
+        .with_context(|| format!("sysroot '{tag}' has no .nixwin.json, is it installed?"))?;
 
     let vcr = cfg.vcr.as_ref().context(
         "the default sysroot has no VCR debug libraries, install it with --features debug",
@@ -126,17 +131,25 @@ fn setup_wine(
             Arch::X86_64 | Arch::Aarch64 => "system32",
             Arch::X86 | Arch::Aarch => "syswow64",
         };
-        let src = ctx.paths.cache_vcr.join(vcr).join("bin").join(arch.as_str());
+        let src = ctx
+            .paths
+            .cache_vcr
+            .join(vcr)
+            .join("bin")
+            .join(arch.as_str());
         if !src.is_dir() {
-            eprintln!("warning: VCR binaries for {arch} missing in cache ({}), skipping", src.display());
+            eprintln!(
+                "warning: VCR binaries for {arch} missing in cache ({}), skipping",
+                src.display()
+            );
             continue;
         }
         let dst = prefix.join("drive_c/windows").join(dst_name);
         std::fs::create_dir_all(&dst)
             .with_context(|| format!("unable to create {}", dst.display()))?;
 
-        for entry in std::fs::read_dir(&src)
-            .with_context(|| format!("unable to read {}", src.display()))?
+        for entry in
+            std::fs::read_dir(&src).with_context(|| format!("unable to read {}", src.display()))?
         {
             let entry = entry?;
             let path = entry.path();
@@ -150,6 +163,9 @@ fn setup_wine(
         }
     }
 
-    println!("{installed} debug dll(s) installed into {}", prefix.display());
+    println!(
+        "{installed} debug dll(s) installed into {}",
+        prefix.display()
+    );
     Ok(())
 }

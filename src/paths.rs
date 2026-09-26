@@ -117,7 +117,10 @@ impl Paths {
 
         if self.sysroot.symlink_metadata().is_ok() {
             std::fs::remove_file(&self.sysroot).with_context(|| {
-                format!("unable to remove existing sysroot link {}", self.sysroot.display())
+                format!(
+                    "unable to remove existing sysroot link {}",
+                    self.sysroot.display()
+                )
             })?;
         }
 
@@ -142,9 +145,14 @@ impl Paths {
     }
 
     /// The machine level configuration file (`config.json`, as opposed to the
-    /// per-tag/lockfile `nixwin.json`)
+    /// per-tag/lockfile `.nixwin.json`)
     pub fn machine_config(&self) -> PathBuf {
         self.data_dir.join("config.json")
+    }
+
+    /// The lockfile of the sysroot with the given tag
+    pub fn lockfile(&self, tag: &str) -> PathBuf {
+        self.tag_dir(tag).join(crate::config::LOCKFILE)
     }
 }
 
@@ -152,18 +160,31 @@ impl Paths {
 pub fn symlink_replace(target: &Path, link: &Path) -> Result<()> {
     if let Ok(meta) = link.symlink_metadata() {
         if meta.is_dir() && !meta.is_symlink() {
-            anyhow::bail!("refusing to replace directory with symlink: {}", link.display());
+            anyhow::bail!(
+                "refusing to replace directory with symlink: {}",
+                link.display()
+            );
         }
         std::fs::remove_file(link)
             .with_context(|| format!("unable to remove existing {}", link.display()))?;
     }
 
     #[cfg(unix)]
-    std::os::unix::fs::symlink(target, link)
-        .with_context(|| format!("unable to symlink {} -> {}", link.display(), target.display()))?;
+    std::os::unix::fs::symlink(target, link).with_context(|| {
+        format!(
+            "unable to symlink {} -> {}",
+            link.display(),
+            target.display()
+        )
+    })?;
     #[cfg(windows)]
-    std::os::windows::fs::symlink_dir(target, link)
-        .with_context(|| format!("unable to symlink {} -> {}", link.display(), target.display()))?;
+    std::os::windows::fs::symlink_dir(target, link).with_context(|| {
+        format!(
+            "unable to symlink {} -> {}",
+            link.display(),
+            target.display()
+        )
+    })?;
 
     Ok(())
 }
@@ -173,12 +194,10 @@ mod tests {
     use super::*;
 
     fn test_env(home: &Path, vars: Vec<(String, String)>) -> impl Fn(&str) -> Option<String> {
-        let vars: std::collections::HashMap<String, String> = std::iter::once((
-            "HOME".to_owned(),
-            home.display().to_string(),
-        ))
-        .chain(vars)
-        .collect();
+        let vars: std::collections::HashMap<String, String> =
+            std::iter::once(("HOME".to_owned(), home.display().to_string()))
+                .chain(vars)
+                .collect();
         move |key| vars.get(key).cloned()
     }
 
@@ -193,10 +212,7 @@ mod tests {
         assert_eq!(paths.sysroots_dir, paths.data_dir.join("sysroots"));
         assert_eq!(paths.sysroot, paths.data_dir.join("sysroot"));
         assert_eq!(paths.cache_msvc, paths.cache_dir.join("VC/Tools/MSVC"));
-        assert_eq!(
-            paths.cache_sdk,
-            paths.cache_dir.join("Windows Kits/10")
-        );
+        assert_eq!(paths.cache_sdk, paths.cache_dir.join("Windows Kits/10"));
         assert_eq!(paths.cache_vcr, paths.cache_dir.join("VCR"));
     }
 
@@ -215,9 +231,18 @@ mod tests {
                 ("NIXWIN_DATA".into(), data.path().to_str().unwrap().into()),
                 ("NIXWIN_CACHE".into(), cache.path().to_str().unwrap().into()),
                 ("NIXWIN_SYSROOTS".into(), sysroots.to_str().unwrap().into()),
-                ("NIXWIN_CACHE_MSVC".into(), cache_msvc.to_str().unwrap().into()),
-                ("NIXWIN_CACHE_SDK".into(), cache_sdk.to_str().unwrap().into()),
-                ("NIXWIN_CACHE_VCR".into(), cache_vcr.to_str().unwrap().into()),
+                (
+                    "NIXWIN_CACHE_MSVC".into(),
+                    cache_msvc.to_str().unwrap().into(),
+                ),
+                (
+                    "NIXWIN_CACHE_SDK".into(),
+                    cache_sdk.to_str().unwrap().into(),
+                ),
+                (
+                    "NIXWIN_CACHE_VCR".into(),
+                    cache_vcr.to_str().unwrap().into(),
+                ),
             ],
         );
         let paths = Paths::resolve_with(None, None, &env).unwrap();
@@ -234,9 +259,25 @@ mod tests {
     #[test]
     fn flag_beats_env() {
         let home = tempfile::tempdir().unwrap();
-        let env = test_env(home.path(), vec![("NIXWIN_DATA".into(), "/from/env".into())]);
+        let env = test_env(
+            home.path(),
+            vec![("NIXWIN_DATA".into(), "/from/env".into())],
+        );
         let paths = Paths::resolve_with(Some(PathBuf::from("/from/flag")), None, &env).unwrap();
         assert_eq!(paths.data_dir, PathBuf::from("/from/flag"));
+    }
+
+    #[test]
+    fn lockfile_and_machine_config() {
+        let home = tempfile::tempdir().unwrap();
+        let env = test_env(home.path(), Vec::new());
+        let paths = Paths::resolve_with(None, None, &env).unwrap();
+
+        assert_eq!(
+            paths.lockfile("17"),
+            paths.tag_dir("17").join(".nixwin.json")
+        );
+        assert_eq!(paths.machine_config(), paths.data_dir.join("config.json"));
     }
 
     #[test]

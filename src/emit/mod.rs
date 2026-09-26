@@ -6,9 +6,9 @@ use crate::cmd::Arch;
 use crate::config::SysrootConfig;
 use anyhow::{Context as _, Result};
 use handlebars::Handlebars;
-use std::path::PathBuf;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::path::PathBuf;
 
 /// Builtin template sources: `(template name, contents)`
 const TEMPLATES: [(&str, &str); 5] = [
@@ -16,10 +16,7 @@ const TEMPLATES: [(&str, &str); 5] = [
         "toolchain",
         include_str!("../../resources/templates/toolchain.cmake"),
     ),
-    (
-        "cmake",
-        include_str!("../../resources/templates/cmake.env"),
-    ),
+    ("cmake", include_str!("../../resources/templates/cmake.env")),
     ("rustc", include_str!("../../resources/templates/rustc.env")),
     ("llvm", include_str!("../../resources/templates/llvm.env")),
     (
@@ -90,9 +87,9 @@ impl<'a> TemplateCtx<'a> {
 
 /// Generates all per-sysroot integration files:
 /// `vfsoverlay.json`, `toolchain.cmake`, `cmake.env`, `rustc.env`, `llvm.env`
-/// and `nixwin.json`.
+/// and `.nixwin.json`.
 ///
-/// `vfsoverlay.json` and `nixwin.json` are emitted with serde_json (serialized
+/// `vfsoverlay.json` and `.nixwin.json` are emitted with serde_json (serialized
 /// data), the remaining files are rendered from handlebars templates.
 pub fn generate_all(
     tag_dir: &Path,
@@ -104,7 +101,10 @@ pub fn generate_all(
     let ctx = TemplateCtx::new(cfg, tag_dir);
 
     vfs::write(&tag_dir.join("vfsoverlay.json"), overlay)?;
-    std::fs::write(tag_dir.join("toolchain.cmake"), hb.render("toolchain", &ctx)?)?;
+    std::fs::write(
+        tag_dir.join("toolchain.cmake"),
+        hb.render("toolchain", &ctx)?,
+    )?;
 
     for (file, name) in [
         ("cmake.env", "cmake"),
@@ -114,7 +114,7 @@ pub fn generate_all(
         std::fs::write(tag_dir.join(file), hb.render(name, &ctx)?)?;
     }
 
-    crate::config::save_json(&tag_dir.join("nixwin.json"), cfg)?;
+    crate::config::save_json(&tag_dir.join(crate::config::LOCKFILE), cfg)?;
     Ok(())
 }
 
@@ -131,11 +131,21 @@ pub fn inspect_output(cfg: &SysrootConfig) -> String {
     }
     out.push_str(&format!(
         "variants: {}\n",
-        fmt_list(&cfg.variants.iter().map(|v| v.to_string()).collect::<Vec<_>>())
+        fmt_list(
+            &cfg.variants
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+        )
     ));
     out.push_str(&format!(
         "features: {}\n",
-        fmt_list(&cfg.features.iter().map(|f| f.to_string()).collect::<Vec<_>>())
+        fmt_list(
+            &cfg.features
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+        )
     ));
     out.push_str(&format!(
         "archs: {}",
@@ -185,7 +195,7 @@ mod tests {
             "cmake.env",
             "rustc.env",
             "llvm.env",
-            "nixwin.json",
+            ".nixwin.json",
         ] {
             assert!(tag_dir.join(name).exists(), "{name} missing");
         }
@@ -193,8 +203,14 @@ mod tests {
         // no leftover placeholders
         for name in ["toolchain.cmake", "cmake.env", "rustc.env", "llvm.env"] {
             let contents = std::fs::read_to_string(tag_dir.join(name)).unwrap();
-            assert!(!contents.contains("{{"), "{name} has unrendered placeholders");
-            assert!(!contents.contains("@CRT"), "{name} has unrendered placeholders");
+            assert!(
+                !contents.contains("{{"),
+                "{name} has unrendered placeholders"
+            );
+            assert!(
+                !contents.contains("@CRT"),
+                "{name} has unrendered placeholders"
+            );
         }
 
         // self-defaulting sysroot
@@ -213,7 +229,9 @@ mod tests {
         // rustc.env: winsysroot + LIB
         let rustc_env = std::fs::read_to_string(tag_dir.join("rustc.env")).unwrap();
         assert!(rustc_env.contains("/winsysroot $NIXWIN_SYSROOT"));
-        assert!(rustc_env.contains("export LIB=\"$NIXWIN_SYSROOT/VC/Tools/MSVC/14.44.17.14/lib/x64;"));
+        assert!(
+            rustc_env.contains("export LIB=\"$NIXWIN_SYSROOT/VC/Tools/MSVC/14.44.17.14/lib/x64;")
+        );
         assert!(rustc_env.contains("Windows Kits/10/Lib/10.0.26100/um/x64"));
         assert!(rustc_env.contains("RUSTFLAGS=\"-C linker=lld-link -C link-arg=/vfsoverlay:$NIXWIN_SYSROOT/vfsoverlay.json\""));
 
@@ -252,10 +270,7 @@ mod tests {
         let rendered = std::fs::read_to_string(tag_dir.join("rustc.env")).unwrap();
         assert_eq!(
             rendered,
-            format!(
-                "custom 14.44.17.14 x64 {}\n",
-                tag_dir.display()
-            )
+            format!("custom 14.44.17.14 x64 {}\n", tag_dir.display())
         );
     }
 
@@ -264,6 +279,8 @@ mod tests {
         let overrides = BTreeMap::new();
         let wrapper = cmake_wrapper(&overrides).unwrap();
         assert!(wrapper.contains("include(\"${_nixwin_sysroot}/toolchain.cmake\")"));
+        assert!(wrapper.contains("if(EXISTS \"${_nw_dir}/.nixwin.json\")"));
+        assert!(wrapper.contains("file(READ \"${_nw_dir}/.nixwin.json\" _nw_lock)"));
     }
 
     #[test]

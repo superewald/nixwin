@@ -27,7 +27,7 @@ The windows sysroot files are downloaded from the Visual Studio manifest and com
     > 
     > - `nixwin setup` adds `NIXWIN_` env variables to `~/.bashrc`
     > - `--wine` adds VCR debug libraries to wine prefixes *(required to run debug builds in wine)*
-    > - `--cmake` sets `CMAKE_TOOLCHAIN_FILE` in `~/.bashrc` to a wrapper script that detects [toolchain lockfiles]() (`nixwin.json`)
+    > - `--cmake` sets `CMAKE_TOOLCHAIN_FILE` in `~/.bashrc` to a wrapper script that detects [toolchain lockfiles](#lockfiles) (`.nixwin.json`)
 
 1. **Install sysroot**: 
     ```sh
@@ -100,6 +100,48 @@ Nixwin adds convenience configurations to integrate the windows sysroot with com
 | `cmake.env` | cmake | Configures cmake using `toolchain.cmake` and `vfsoverlay.json`. |
 | `rustc.env` | rustc/cargo | Configures rustc using `RUSTFLAGS`/`CFLAGS`/`CXXFLAGS` |
 
+### lockfiles
+
+A lockfile is a `.nixwin.json` file which pins a sysroot to a fully resolved set of components: its `tag`, `manifest`, `channel`, `archs`, `variants`, `features`, `sdk`, `crt` and `vcr`. Commit a lockfile to version control to make installs reproducible across machines and CI runs.
+
+Lockfiles are written to two places:
+
+- `$CWD/.nixwin.json` — the project lockfile, written on demand with `nixwin install --lock`
+- `$NIXWIN_DATA/sysroots/$TAG/.nixwin.json` — the configuration of an installed sysroot, emitted on every install
+
+This is separate from the machine configuration (`$NIXWIN_DATA/config.json`, see [config](#config)), which holds per-machine install defaults and integration flags rather than pinned versions.
+
+<details><summary><b>creating a lockfile</b></summary>
+
+```sh
+# create .nixwin.json for the VS 16 sysroot in the current directory
+nixwin install 16 --lock
+# create .nixwin.json in another project directory
+nixwin install 16 --lock /path/to/project
+# write to an explicit file instead
+nixwin install 16 --lock path/to/custom.lock.json
+```
+
+`--lock` takes an optional path. A directory receives the default `.nixwin.json` name, any other path is written verbatim.
+
+</details>
+
+<details><summary><b>how lockfiles are used</b></summary>
+
+| consumer | behavior |
+|---|---|
+| `nixwin install` | reads `$CWD/.nixwin.json` unless `--config <PATH>` points at another lockfile |
+| `--config <PATH>` | global flag, installs from the lockfile at an explicit path |
+| `nixwin setup --cmake` | the generated `CMAKE_TOOLCHAIN_FILE` wrapper scans `${CMAKE_CURRENT_SOURCE_DIR}` and its own directory for `.nixwin.json`, and uses the `tag` therein to include `$NIXWIN_DATA/sysroots/$TAG/toolchain.cmake`. Falls back to `$NIXWIN_SYSROOT` and then `$NIXWIN_DATA/sysroot` when no lockfile is found. |
+| CI | hash the lockfile into your cache key so the cache is invalidated when component versions change |
+
+When resolving an install, lockfile values are combined with flags as follows:
+
+- scalars (`tag`, `manifest`, `channel`, `sdk`, `crt`): flags > lockfile > installed sysroot configuration > machine defaults > builtin defaults
+- lists (`archs`, `variants`, `features`): the union of the installed sysroot configuration, the lockfile and the flags. Machine defaults are only applied when that union is empty.
+
+</details>
+
 
 <details><summary><b>environment variables</b></summary>
 
@@ -151,7 +193,7 @@ $NIXWIN_DATA/
         cmake.env
         rustc.env
         llvm.env
-        nixwin.json
+        .nixwin.json
     sysroot     # ln -s sysroots/$(nixwin config default.tag)
     config.json 
 
@@ -182,7 +224,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: [ "${{ env.NIXWIN_CACHE }}", "${{ env.NIXWIN_DATA }}" ]
-          key: nixwin-17-${{ hashFiles('nixwin.json') }}
+          key: nixwin-17-${{ hashFiles('.nixwin.json') }}
           restore-keys: [ nixwin-17- ]
       - run: nixwin install 17 --cache-dir "$NIXWIN_CACHE" --data-dir "$NIXWIN_DATA" --features debug
       - run: |
@@ -204,7 +246,7 @@ variables:
 build:
   image: nixwin:17
   cache:
-    key: { files: [nixwin.json] }
+    key: { files: [.nixwin.json] }
     paths: [nixwin-cache/, nixwin-data/]
   before_script:
     - nixwin install 17 --cache-dir "$NIXWIN_CACHE" --data-dir "$NIXWIN_DATA" --features debug
@@ -267,7 +309,7 @@ nixwin setup --cmake --wine
 **Options**
 | option |  description |
 |---|---|
-| `--cmake` | Set `CMAKE_TOOLCHAIN_FILE` to a wrapper which auto-selects the sysroot toolchain when `nixwin.json` is present. | false | | |
+| `--cmake` | Set `CMAKE_TOOLCHAIN_FILE` to a wrapper which auto-selects the sysroot toolchain when `.nixwin.json` is present. | false | | |
 | `--wine` | Add the VCR debug libraries to user wine prefixes.
 
 ## install
@@ -281,14 +323,14 @@ The `MANIFEST_VERSION` argument is a shortuct for `nixwin install --tag $MANIFES
 **Examples**
 
 ```sh
-# install sysroots from nixwin.json
+# install sysroots from .nixwin.json
 nixwin install
 # install latest sdk/crt versions from VS 16
 nixwin install 16 # shortcut for `nixwin install -t 16 --manifest 16`
 # add a feature/architecture to the VS 16 windows sysroot
 nixwin install 16 -a x86 -f debug
-# create nixwin.json for VS 16 sysroot in current directory
-nixwin install 16 --init
+# create .nixwin.json for VS 16 sysroot in current directory
+nixwin install 16 --lock
 # install latest versions of sdk/crt, tag the sysroot as `25H2` and create lockfile
 nixwin install --tag 25H2 \
     --manifest 18 \
@@ -297,9 +339,9 @@ nixwin install --tag 25H2 \
     --features debug \
     --archs x86_64,aarch64 \
     --variants desktop,onecore,spectre \
-    --init /path/to/project
-# create nixwin.json for 25H2 sysroot in the current directory
-nixwin install -t 25H2 --init
+    --lock /path/to/project
+# create .nixwin.json for 25H2 sysroot in the current directory
+nixwin install -t 25H2 --lock
 ```
 
 **Options**
@@ -315,7 +357,7 @@ nixwin install -t 25H2 --init
 | `--sdk` | Use a specific WindowsSDK version. | - | eg `10.0.28000.0` | ☐ |
 | `--crt` | Use a specific CRT version (this also determines the VCR version). | - | eg `14.40.33807` | ☐ |
 | `-d`, `--default` | Set this windows sysroot as user default (*see [default](#default)*) | - | | ☐ |
-| `--init` | Path to nixwin lockfile. If not specified no lockfile is generated. | `$CWD/nixwin.json` | valid path | ☐ |
+| `--lock` | Path to the lockfile to write. If not specified no lockfile is generated. | `$CWD/.nixwin.json` | valid path | ☐ |
 
 ## config
 

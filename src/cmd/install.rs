@@ -40,10 +40,10 @@ pub struct InstallOptions {
     /// Set this windows sysroot as the user default
     #[arg(short = 'd', long)]
     pub default: bool,
-    /// Write a nixwin.json lockfile for the installed sysroot. Optionally
-    /// takes a file or project path, defaults to `$CWD/nixwin.json`
-    #[arg(long, num_args = 0..=1, default_missing_value = "nixwin.json")]
-    pub init: Option<PathBuf>,
+    /// Write a .nixwin.json lockfile for the installed sysroot. Optionally
+    /// takes a file or project path, defaults to `$CWD/.nixwin.json`
+    #[arg(short = 'l', long, num_args = 0..=1, default_missing_value = config::LOCKFILE)]
+    pub lock: Option<PathBuf>,
 }
 
 /// Install (or update) a windows sysroot
@@ -147,12 +147,8 @@ pub fn install(opts: &InstallOptions, config_path: Option<&Path>, ctx: &Ctx) -> 
     }
 
     // ---- lockfile
-    if let Some(init_path) = &opts.init {
-        let lock = if init_path.is_dir() {
-            init_path.join("nixwin.json")
-        } else {
-            init_path.clone()
-        };
+    if let Some(lock_path) = &opts.lock {
+        let lock = resolve_lock_path(lock_path);
         config::save_json(&lock, &cfg)
             .with_context(|| format!("unable to write lockfile {}", lock.display()))?;
         println!("lockfile: {}", lock.display());
@@ -171,6 +167,16 @@ pub fn install(opts: &InstallOptions, config_path: Option<&Path>, ctx: &Ctx) -> 
     Ok(())
 }
 
+/// Resolves the `--lock` argument: a directory receives the default lockfile
+/// name, any other path is used verbatim as the lockfile itself
+fn resolve_lock_path(path: &Path) -> PathBuf {
+    if path.is_dir() {
+        path.join(config::LOCKFILE)
+    } else {
+        path.to_path_buf()
+    }
+}
+
 fn resolve_install_config(
     opts: &InstallOptions,
     config_path: Option<&Path>,
@@ -182,7 +188,7 @@ fn resolve_install_config(
         Some(path) => path.to_path_buf(),
         None => std::env::current_dir()
             .context("unable to determine current directory")?
-            .join("nixwin.json"),
+            .join(config::LOCKFILE),
     };
     let file_cfg = config::load_input_config(&file_cfg_path)?;
 
@@ -200,7 +206,7 @@ fn resolve_install_config(
     );
     let tag = tag_hint.unwrap();
 
-    let tag_cfg = config::load_input_config(&ctx.paths.tag_dir(&tag).join("nixwin.json"))?;
+    let tag_cfg = config::load_input_config(&ctx.paths.lockfile(&tag))?;
 
     let ov = Overrides {
         tag: opts.tag.clone(),
@@ -324,6 +330,23 @@ mod tests {
             crt: "14.44.17.14".into(),
             vcr: Some("14.44.17.14".into()),
         }
+    }
+
+    #[test]
+    fn resolve_lock_path_uses_lockfile_name_for_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_lock_path(dir.path()),
+            dir.path().join(".nixwin.json")
+        );
+    }
+
+    #[test]
+    fn resolve_lock_path_keeps_explicit_files() {
+        assert_eq!(
+            resolve_lock_path(Path::new("custom/my.lock.json")),
+            PathBuf::from("custom/my.lock.json")
+        );
     }
 
     /// Fake cache layout mimicking the xwin splat output

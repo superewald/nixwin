@@ -118,11 +118,8 @@ pub fn merge(old: Option<OverlayDoc>, new: Option<OverlayDoc>) -> Option<Overlay
             if let Some(old) = old {
                 let names: std::collections::HashSet<String> =
                     doc.roots.iter().map(|e| e.name().to_owned()).collect();
-                doc.roots.extend(
-                    old.roots
-                        .into_iter()
-                        .filter(|e| !names.contains(e.name())),
-                );
+                doc.roots
+                    .extend(old.roots.into_iter().filter(|e| !names.contains(e.name())));
             }
             Some(doc)
         }
@@ -147,11 +144,8 @@ pub fn write(path: &Path, doc: Option<&OverlayDoc>) -> Result<()> {
     }
     let file = std::fs::File::create(path)
         .with_context(|| format!("unable to create {}", path.display()))?;
-    serde_json::to_writer_pretty(
-        std::io::BufWriter::new(file),
-        &doc,
-    )
-    .with_context(|| format!("unable to write {}", path.display()))?;
+    serde_json::to_writer_pretty(std::io::BufWriter::new(file), &doc)
+        .with_context(|| format!("unable to write {}", path.display()))?;
     Ok(())
 }
 
@@ -224,10 +218,8 @@ mod tests {
         assert_eq!(doc.roots.len(), 2);
         assert!(matches!(doc.roots[1], Entry::DirectoryRemap { .. }));
 
-        let round: OverlayDoc = serde_json::from_str(
-            &serde_json::to_string_pretty(&doc).unwrap(),
-        )
-        .unwrap();
+        let round: OverlayDoc =
+            serde_json::from_str(&serde_json::to_string_pretty(&doc).unwrap()).unwrap();
         assert!(!round.case_sensitive);
     }
 

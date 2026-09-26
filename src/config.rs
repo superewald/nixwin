@@ -1,5 +1,5 @@
-use crate::cmd::{Arch, Feature, Variant};
 use crate::Ctx;
+use crate::cmd::{Arch, Feature, Variant};
 use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -9,8 +9,12 @@ fn default_channel() -> String {
     "release".to_owned()
 }
 
+/// The lockfile name, used both for the project-local lockfile and the
+/// per-sysroot configuration in `$NIXWIN_DATA/sysroots/$TAG/`
+pub const LOCKFILE: &str = ".nixwin.json";
+
 /// The full configuration of an installed sysroot, stored as
-/// `<tag>/nixwin.json` and used for lockfiles.
+/// `<tag>/.nixwin.json` and used for lockfiles.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SysrootConfig {
     pub tag: String,
@@ -95,10 +99,9 @@ pub fn validate_tag(tag: &str) -> Result<()> {
     if tag.is_empty() || tag == "." || tag == ".." {
         bail!("invalid sysroot tag '{tag}'");
     }
-    if tag
-        .chars()
-        .any(|c| matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control())
-    {
+    if tag.chars().any(|c| {
+        matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()
+    }) {
         bail!("sysroot tag '{tag}' contains invalid path characters");
     }
     Ok(())
@@ -179,9 +182,10 @@ pub fn resolve_config(
     );
     let archs = if archs.is_empty() {
         if defaults.archs.is_empty() {
-            vec![host_arch.context(
-                "unable to determine host architecture, specify it with --archs",
-            )?]
+            vec![
+                host_arch
+                    .context("unable to determine host architecture, specify it with --archs")?,
+            ]
         } else {
             defaults.archs.clone()
         }
@@ -253,8 +257,8 @@ pub fn load_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>>
     if !path.exists() {
         return Ok(None);
     }
-    let contents = std::fs::read(path)
-        .with_context(|| format!("unable to read {}", path.display()))?;
+    let contents =
+        std::fs::read(path).with_context(|| format!("unable to read {}", path.display()))?;
     serde_json::from_slice(&contents)
         .map(Some)
         .with_context(|| format!("unable to parse {}", path.display()))
@@ -272,7 +276,7 @@ pub fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     Ok(())
 }
 
-/// Loads a nixwin.json configuration/lockfile leniently (all fields optional)
+/// Loads a `.nixwin.json` configuration/lockfile leniently (all fields optional)
 pub fn load_input_config(path: &Path) -> Result<Option<InputConfig>> {
     load_json(path)
 }
@@ -325,7 +329,17 @@ mod tests {
 
     #[test]
     fn resolve_missing_tag_fails() {
-        assert!(resolve_config(None, None, &Overrides::default(), &Defaults::default(), Some(Arch::X86_64), false).is_err());
+        assert!(
+            resolve_config(
+                None,
+                None,
+                &Overrides::default(),
+                &Defaults::default(),
+                Some(Arch::X86_64),
+                false
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -334,7 +348,15 @@ mod tests {
             tag: Some("17".into()),
             ..Defaults::default()
         };
-        let r = resolve_config(None, None, &Overrides::default(), &defaults, Some(Arch::X86_64), false).unwrap();
+        let r = resolve_config(
+            None,
+            None,
+            &Overrides::default(),
+            &defaults,
+            Some(Arch::X86_64),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.tag, "17");
     }
 
@@ -351,7 +373,15 @@ mod tests {
             sdk: Some("10.0.28000.0".into()),
             crt: Some("14.40.33807".into()),
         };
-        let r = resolve_config(None, None, &ov, &Defaults::default(), Some(Arch::X86), false).unwrap();
+        let r = resolve_config(
+            None,
+            None,
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.tag, "25H2");
         assert_eq!(r.manifest, 18);
         assert_eq!(r.channel, "pre");
@@ -371,7 +401,15 @@ mod tests {
             features: Some(vec![Feature::Debug]),
             ..Overrides::default()
         };
-        let r = resolve_config(Some(tag_cfg), None, &ov, &Defaults::default(), Some(Arch::X86_64), false).unwrap();
+        let r = resolve_config(
+            Some(tag_cfg),
+            None,
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86_64),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.archs, vec![Arch::X86_64, Arch::X86]);
         assert_eq!(r.features, vec![Feature::Debug]);
         assert_eq!(r.variants, vec![Variant::Desktop]);
@@ -421,7 +459,15 @@ mod tests {
             manifest: Some(16),
             ..Overrides::default()
         };
-        let r = resolve_config(Some(tag_cfg), Some(file_cfg), &ov, &Defaults::default(), Some(Arch::X86_64), false).unwrap();
+        let r = resolve_config(
+            Some(tag_cfg),
+            Some(file_cfg),
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86_64),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.manifest, 16);
         assert_eq!(r.sdk.as_deref(), Some("10.0.1.0"));
     }
@@ -432,9 +478,25 @@ mod tests {
             tag: Some("17".into()),
             ..Overrides::default()
         };
-        let r = resolve_config(None, None, &ov, &Defaults::default(), Some(Arch::X86_64), false).unwrap();
+        let r = resolve_config(
+            None,
+            None,
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86_64),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.features, vec![Feature::Debug]);
-        let r = resolve_config(None, None, &ov, &Defaults::default(), Some(Arch::X86_64), true).unwrap();
+        let r = resolve_config(
+            None,
+            None,
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86_64),
+            true,
+        )
+        .unwrap();
         assert!(r.features.is_empty());
     }
 
@@ -444,7 +506,15 @@ mod tests {
             positional_tag: Some("16".into()),
             ..Overrides::default()
         };
-        let r = resolve_config(None, None, &ov, &Defaults::default(), Some(Arch::X86_64), false).unwrap();
+        let r = resolve_config(
+            None,
+            None,
+            &ov,
+            &Defaults::default(),
+            Some(Arch::X86_64),
+            false,
+        )
+        .unwrap();
         assert_eq!(r.tag, "16");
     }
 
@@ -504,7 +574,10 @@ mod tests {
         assert_eq!(machine.default.archs, vec![Arch::X86_64]);
         assert_eq!(machine.default.manifest, Some(16));
         assert_eq!(machine.default.channel.as_deref(), Some("pre"));
-        assert_eq!(machine.tpl.get("toolchain"), Some(&PathBuf::from("/tmp/custom.tpl")));
+        assert_eq!(
+            machine.tpl.get("toolchain"),
+            Some(&PathBuf::from("/tmp/custom.tpl"))
+        );
         assert!(!machine.cmake);
     }
 }

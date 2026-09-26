@@ -11,7 +11,7 @@ pub struct Cli {
     /// Path to the nixwin data directory ($NIXWIN_DATA)
     #[arg(long, global = true)]
     data_dir: Option<PathBuf>,
-    /// Path to a nixwin.json configuration/lockfile
+    /// Path to a .nixwin.json configuration/lockfile
     #[arg(long, global = true)]
     config: Option<PathBuf>,
 

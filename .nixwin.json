@@ -1,0 +1,17 @@
+{
+  "tag": "17",
+  "manifest": 17,
+  "channel": "release",
+  "archs": [
+    "x86_64"
+  ],
+  "variants": [
+    "desktop"
+  ],
+  "features": [
+    "debug"
+  ],
+  "sdk": "10.0.26100",
+  "crt": "14.44.17.14",
+  "vcr": "14.44.35211"
+}

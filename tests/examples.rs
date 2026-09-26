@@ -18,7 +18,8 @@ fn repo_root() -> PathBuf {
 
 fn sysroot() -> Option<PathBuf> {
     let root = repo_root();
-    let data = std::env::var("NIXWIN_DATA").unwrap_or_else(|_| format!("{}/.nixwin", root.display()));
+    let data =
+        std::env::var("NIXWIN_DATA").unwrap_or_else(|_| format!("{}/.nixwin", root.display()));
     let sysroot = std::env::var("NIXWIN_SYSROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(format!("{}/sysroot", data)));

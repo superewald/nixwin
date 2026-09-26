@@ -1,8 +1,8 @@
-use crate::cmd::{parse_csv_list, Arch, Feature, Variant};
+use crate::Ctx;
+use crate::cmd::{Arch, Feature, Variant, parse_csv_list};
 use crate::config::{self, MachineConfig};
 use crate::emit;
-use crate::Ctx;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, clap::Args)]
@@ -108,22 +108,47 @@ fn set(machine: &mut MachineConfig, key: Key, value: &str, ctx: &Ctx) -> Result<
         }
         Key::DefaultArches => {
             machine.default.archs = parse_csv_list::<Arch>(value)?;
-            println!("{}", machine.default.archs.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(","));
+            println!(
+                "{}",
+                machine
+                    .default
+                    .archs
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
         }
         Key::DefaultVariants => {
             machine.default.variants = parse_csv_list::<Variant>(value)?;
-            println!("{}", machine.default.variants.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","));
+            println!(
+                "{}",
+                machine
+                    .default
+                    .variants
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
         }
         Key::DefaultFeatures => {
             machine.default.features = parse_csv_list::<Feature>(value)?;
-            println!("{}", machine.default.features.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(","));
+            println!(
+                "{}",
+                machine
+                    .default
+                    .features
+                    .iter()
+                    .map(|f| f.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
         }
         Key::DefaultManifest => {
-            machine.default.manifest = Some(
-                value
-                    .parse()
-                    .map_err(|_| anyhow::anyhow!("manifest version must be a number, got '{value}'"))?,
-            );
+            machine.default.manifest = Some(value.parse().map_err(|_| {
+                anyhow::anyhow!("manifest version must be a number, got '{value}'")
+            })?);
             println!("{value}");
         }
         Key::DefaultChannel => {
@@ -343,10 +368,7 @@ mod tests {
         std::fs::write(&tpl, "x").unwrap();
 
         run_config(&ctx, &["tpl.toolchain", tpl.to_str().unwrap()]).unwrap();
-        assert_eq!(
-            machine(&ctx).tpl.get("toolchain"),
-            Some(&tpl)
-        );
+        assert_eq!(machine(&ctx).tpl.get("toolchain"), Some(&tpl));
 
         // unknown template names rejected
         assert!(run_config(&ctx, &["tpl.nothing", "/tmp/x"]).is_err());

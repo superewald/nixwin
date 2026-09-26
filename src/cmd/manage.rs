@@ -6,15 +6,13 @@ use anyhow::{Context as _, Result};
 /// List the installed windows sysroots
 pub fn ls(ctx: &Ctx) -> Result<()> {
     let mut tags: Vec<String> = std::fs::read_dir(&ctx.paths.sysroots_dir)
-        .with_context(|| {
-            format!(
-                "unable to read {}",
-                ctx.paths.sysroots_dir.display()
-            )
-        })?
+        .with_context(|| format!("unable to read {}", ctx.paths.sysroots_dir.display()))?
         .filter_map(|entry| {
             let entry = entry.ok()?;
-            entry.path().is_dir().then(|| entry.file_name().to_string_lossy().into_owned())
+            entry
+                .path()
+                .is_dir()
+                .then(|| entry.file_name().to_string_lossy().into_owned())
         })
         .collect();
     tags.sort();
@@ -73,8 +71,8 @@ pub fn rm(tag: Option<&str>, ctx: &Ctx) -> Result<()> {
 /// Print details about a windows sysroot
 pub fn inspect(tag: Option<&str>, ctx: &Ctx) -> Result<()> {
     let tag = resolve_tag(tag, ctx)?;
-    let cfg: SysrootConfig = config::load_json(&ctx.paths.tag_dir(&tag).join("nixwin.json"))?
-        .with_context(|| format!("sysroot '{tag}' has no nixwin.json, is it installed?"))?;
+    let cfg: SysrootConfig = config::load_json(&ctx.paths.lockfile(&tag))?
+        .with_context(|| format!("sysroot '{tag}' has no .nixwin.json, is it installed?"))?;
     println!("{}", emit::inspect_output(&cfg));
     Ok(())
 }
