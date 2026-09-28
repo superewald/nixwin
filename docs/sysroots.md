@@ -61,6 +61,19 @@ Nixwin adds convenience configurations to integrate the windows sysroot with com
 | `rustc.env` | rustc/cargo | Configures rustc using `RUSTFLAGS`/`CFLAGS`/`CXXFLAGS` |
 
 
+### wine
+
+`nixwin setup --wine` exports `WINEPATH` pointing at the VCR debug libraries of the *default* sysroot, one directory per installed architecture, e.g. `$NIXWIN_SYSROOT/VCR/<version>/bin/x86_64`. Wine searches `WINEPATH` for DLLs, so nothing is copied and no wine prefix is created or modified. The default sysroot must be installed with the `debug` feature, which is what provides the VCR debug libraries (*see [what's included?](#whats-included)*).
+
+Like the other setup exports, the `WINEPATH` export is written to your shell rc in its own block (`# >>> nixwin (wine) >>>`) and is only picked up by shells started afterwards.
+
+> [!IMPORTANT]
+> The export is scoped to the shell session it is sourced in. Processes which are not started from that shell, such as a graphical session or a service which was already running when `nixwin setup` ran, do not see it. Start them from a shell, or export `WINEPATH` yourself.
+
+> [!NOTE]
+> Nixwin no longer copies DLLs into a wine prefix. Prefixes which were populated by earlier nixwin versions keep those copies; they are not cleaned up automatically, so remove them yourself if you want the prefix to only use the sysroot's libraries.
+
+
 ## environment variables
 
 | variable | description | default |

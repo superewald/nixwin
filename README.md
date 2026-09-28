@@ -26,7 +26,7 @@ nixwin setup --wine --cmake # optional, recommended
 > [!NOTE]
 > - `nixwin setup` exports `NIXWIN_SYSROOT`, `NIXWIN_DATA` and `NIXWIN_CACHE` in your shell rc (*see [sysroot/environment variables](./docs/sysroots.md#environment-variables)*)
 > - `nixwin setup --cmake` additionally sets `CMAKE_TOOLCHAIN_FILE` in your shell rc
-> - `--wine` copies the VCR debug libraries from the default sysroot into your wine prefix (*see [sysroot/wine](./docs/sysroots.md#tool-integration)*)
+> - `nixwin setup --wine` exports `WINEPATH` in your shell rc, so wine resolves the VCR debug libraries of the default sysroot. The export is scoped to your shell session, processes started outside of it are unaffected (*see [sysroot/wine](./docs/sysroots.md#wine)*)
 > - `--cmake` let's cmake detect [lockfiles] and use their [sysroot toolchains](./docs/sysroots.md#tool-integration).
 
 > [!WARNING]

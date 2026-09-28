@@ -16,8 +16,7 @@ nixwin setup --cmake --wine
 | option |  description | default |
 |---|---|
 | `--cmake` | Set `CMAKE_TOOLCHAIN_FILE` to a wrapper which auto-selects the sysroot toolchain when `.nixwin.json` is present. | false |
-| `--wine` | Add the VCR debug libraries to user wine prefixes. | false |
-| `--wine-prefix` | Wine prefix to install into. | `$WINEPREFIX` or `~/.wine` |
+| `--wine` | Export `WINEPATH` in your shell rc, so wine resolves the VCR debug libraries of the default sysroot. | false |
 
 ## install
 
