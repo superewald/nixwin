@@ -109,11 +109,40 @@ List the installed windows sysroots.
 
 ## rm
 
-**Synopsis**: `nixwin rm [TAG]`
+**Synopsis**: `nixwin rm [TAG] [OPTIONS]`
 
 Removes a windows sysroot from disk. If `TAG` is omitted the default sysroot is removed. Removing the default sysroot also clears the configured default tag.
 
-`rm` takes no options: to drop an architecture, feature or variant from a sysroot, install it again without that component.
+With component options, the named components are removed from the sysroot's configuration and the sysroot is rebuilt. Removing an architecture or the `debug` feature reduces the sysroot on disk.
+
+```sh
+# remove the whole sysroot
+nixwin rm 17
+# drop the aarch64 and x86 libraries from sysroot 17
+nixwin rm 17 -a aarch64,x86
+# drop the debug feature, which also removes the VCR directory
+nixwin rm 17 -f debug
+# drop several components at once
+nixwin rm 17 -a aarch64 -f atl --variants spectre
+```
+
+**Options**
+
+| option |  description | values |
+|---|---|---|
+| `-a`, `--arches` | Target architectures to remove from the sysroot. | `[x86,x86_64,aarch,aarch64]` |
+| `-f`, `--features` | Features to remove from the sysroot. | `[debug,atl]` |
+| `--variants` | SDK/CRT variants to remove from the sysroot. | `[desktop,onecore,store,spectre]` |
+
+Components which are not part of the sysroot are reported and skipped, so the command is safe to re-run. Removing every architecture is rejected, because a sysroot without architectures cannot be linked.
+
+> [!NOTE]
+> Removing `atl` or a variant updates the sysroot's configuration and therefore applies to *future* installs, it does not remove the files which are currently in the sysroot. Their files are reached through directories which are linked as a whole, so there is nothing to unlink per feature or variant.
+
+> [!IMPORTANT]
+> List-valued components are the union of the installed configuration, the project lockfile and the flags when installing (see [lockfiles](./lockfiles.md#how-lockfiles-are-used)). A `.nixwin.json` which still lists a removed component therefore brings it back on the next `nixwin install`. Update the project lockfile in the same change as the removal.
+
+The rebuild re-runs the same steps as `nixwin install` (the symlink view, then the integration files), so the sysroot's `.nixwin.json` and its integration files stay in sync with the reduced configuration.
 
 ## inspect
 

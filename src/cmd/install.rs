@@ -232,7 +232,7 @@ fn resolve_install_config(
 }
 
 /// (Re)builds the sysroot view: directories of symlinks into the shared cache
-fn link_tag(tag_dir: &Path, cfg: &SysrootConfig, paths: &Paths) -> Result<()> {
+pub(crate) fn link_tag(tag_dir: &Path, cfg: &SysrootConfig, paths: &Paths) -> Result<()> {
     if tag_dir.exists() {
         std::fs::remove_dir_all(tag_dir)
             .with_context(|| format!("unable to remove existing sysroot {}", tag_dir.display()))?;
