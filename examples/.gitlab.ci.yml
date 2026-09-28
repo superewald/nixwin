@@ -1,0 +1,15 @@
+variables:
+  NIXWIN_CACHE: nixwin-cache
+  NIXWIN_DATA: nixwin-data
+build:
+  image: nixwin:17
+  cache:
+    key: { files: [.nixwin.json] }
+    paths: [nixwin-cache/, nixwin-data/]
+  before_script:
+    - nixwin install 17 --cache-dir "$NIXWIN_CACHE" --data-dir "$NIXWIN_DATA" --features debug
+  script:
+    - export CMAKE_TOOLCHAIN_FILE=$NIXWIN_SYSROOT/toolchain.cmake
+    - export CMAKE_CLANG_VFS_OVERLAY=$NIXWIN_SYSROOT/vfsoverlay.json
+    - cmake -B build -DTARGET_PLATFORM Win32 && cmake --build build
+    - source $NIXWIN_SYSROOT/rustc.env && cargo build --target x86_64-pc-windows-msvc

@@ -1,0 +1,23 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  cross:
+    runs-on: ubuntu-latest
+    container: { image: nixwin:17 }
+    env:
+      NIXWIN_CACHE: /tmp/nixwin-cache
+      NIXWIN_DATA: /tmp/nixwin-data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: [ "${{ env.NIXWIN_CACHE }}", "${{ env.NIXWIN_DATA }}" ]
+          key: nixwin-17-${{ hashFiles('.nixwin.json') }}
+          restore-keys: [ nixwin-17- ]
+      - run: nixwin install 17 --cache-dir "$NIXWIN_CACHE" --data-dir "$NIXWIN_DATA" --features debug
+      - run: |
+          export CMAKE_TOOLCHAIN_FILE=$NIXWIN_SYSROOT/toolchain.cmake
+          export CMAKE_CLANG_VFS_OVERLAY=$NIXWIN_SYSROOT/vfsoverlay.json
+          cmake -B build -DTARGET_PLATFORM Win32 && cmake --build build
+          source $NIXWIN_SYSROOT/rustc.env
+          cargo build --target x86_64-pc-windows-msvc
