@@ -1,5 +1,4 @@
 use crate::Ctx;
-use crate::cmd::Arch;
 use crate::config::{self, MachineConfig, SysrootConfig};
 use crate::emit;
 use crate::paths::Paths;
@@ -13,12 +12,10 @@ pub struct SetupOptions {
     /// and persist `CMAKE_TOOLCHAIN_FILE` in your shell rc
     #[arg(long)]
     pub cmake: bool,
-    /// Add the VCR debug libraries to your user wine prefix(es)
+    /// Add `WINEPATH` to your shell rc, so wine resolves the VCR debug
+    /// libraries from the default sysroot
     #[arg(long)]
     pub wine: bool,
-    /// Wine prefix to install into (defaults to `$WINEPREFIX` or `~/.wine`)
-    #[arg(long)]
-    pub wine_prefix: Option<std::path::PathBuf>,
 }
 
 /// Initialize nixwin on the machine, create configuration and tool integration
@@ -35,7 +32,7 @@ pub fn setup(opts: &SetupOptions, ctx: &Ctx) -> Result<()> {
 
     if opts.wine {
         machine.wine = true;
-        setup_wine(ctx, opts.wine_prefix.clone())?;
+        setup_wine(ctx)?;
     }
 
     config::save_json(&config_path, &machine)?;
@@ -70,6 +67,8 @@ const PATH_RC_START: &str = "# >>> nixwin >>>";
 const PATH_RC_END: &str = "# <<< nixwin <<<";
 const CMAKE_RC_START: &str = "# >>> nixwin (cmake) >>>";
 const CMAKE_RC_END: &str = "# <<< nixwin (cmake) <<<";
+const WINE_RC_START: &str = "# >>> nixwin (wine) >>>";
+const WINE_RC_END: &str = "# <<< nixwin (wine) <<<";
 
 /// What writing a managed block did to the shell rc
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,16 +212,28 @@ fn setup_cmake(
     Ok(())
 }
 
-fn setup_wine(ctx: &Ctx, wine_prefix: Option<std::path::PathBuf>) -> Result<()> {
-    let prefix = wine_prefix
-        .or_else(|| {
-            std::env::var("WINEPREFIX")
-                .ok()
-                .map(std::path::PathBuf::from)
+/// The directories wine searches for the sysroot's VCR debug libraries, one
+/// per configured architecture. Resolved through the default sysroot rather
+/// than the cache, so the value follows whichever sysroot is the default.
+fn winepath(paths: &Paths, cfg: &SysrootConfig, vcr: &str) -> String {
+    cfg.archs
+        .iter()
+        .map(|arch| {
+            paths
+                .sysroot
+                .join("VCR")
+                .join(vcr)
+                .join("bin")
+                .join(arch.as_str())
         })
-        .or_else(|| std::env::home_dir().map(|home| home.join(".wine")))
-        .context("unable to determine wine prefix, specify it with --wine-prefix")?;
+        // wine separates WINEPATH entries with `;` on every platform
+        .map(|dir| format!("{};", dir.display()))
+        .collect::<String>()
+        .trim_end_matches(';')
+        .to_owned()
+}
 
+fn setup_wine(ctx: &Ctx) -> Result<()> {
     let tag = crate::cmd::resolve_tag(None, ctx)?;
     let cfg: SysrootConfig = config::load_json(&ctx.paths.lockfile(&tag))?
         .with_context(|| format!("sysroot '{tag}' has no .nixwin.json, is it installed?"))?;
@@ -231,55 +242,28 @@ fn setup_wine(ctx: &Ctx, wine_prefix: Option<std::path::PathBuf>) -> Result<()> 
         "the default sysroot has no VCR debug libraries, install it with --features debug",
     )?;
 
-    let mut installed = 0usize;
-    for arch in &cfg.archs {
-        // 64-bit dlls go to system32, 32-bit dlls to syswow64
-        let dst_name = match arch {
-            Arch::X86_64 | Arch::Aarch64 => "system32",
-            Arch::X86 | Arch::Aarch => "syswow64",
-        };
-        let src = ctx
-            .paths
-            .cache_vcr
-            .join(vcr)
-            .join("bin")
-            .join(arch.as_str());
-        if !src.is_dir() {
-            eprintln!(
-                "warning: VCR binaries for {arch} missing in cache ({}), skipping",
-                src.display()
-            );
-            continue;
-        }
-        let dst = prefix.join("drive_c/windows").join(dst_name);
-        std::fs::create_dir_all(&dst)
-            .with_context(|| format!("unable to create {}", dst.display()))?;
+    let export = format!("export WINEPATH=\"{}\"", winepath(&ctx.paths, &cfg, vcr));
 
-        for entry in
-            std::fs::read_dir(&src).with_context(|| format!("unable to read {}", src.display()))?
-        {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("dll") {
-                continue;
+    match shell_rc() {
+        Some(rc) => match write_rc_block(&rc, WINE_RC_START, WINE_RC_END, &export)? {
+            BlockUpdate::Replaced => {
+                println!("shell rc: {} (updated WINEPATH export)", rc.display())
             }
-            let file_name = entry.file_name();
-            std::fs::copy(&path, dst.join(&file_name))
-                .with_context(|| format!("unable to install {}", path.display()))?;
-            installed += 1;
+            BlockUpdate::Appended => {
+                println!("shell rc: {} (added WINEPATH export)", rc.display())
+            }
+        },
+        None => {
+            println!("could not detect your shell rc, add to your profile:\n  {export}");
         }
     }
 
-    println!(
-        "{installed} debug dll(s) installed into {}",
-        prefix.display()
-    );
     Ok(())
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd::{Arch, Feature};
     use std::path::PathBuf;
 
     /// `Paths` for a fixed home, without reading the real environment
@@ -543,5 +527,76 @@ mod tests {
         assert!(!contents.contains("\"/a\""));
         assert_eq!(contents.matches(CMAKE_RC_START).count(), 1);
         assert_eq!(contents.matches(PATH_RC_START).count(), 1);
+    }
+
+    fn sysroot_cfg(archs: Vec<Arch>, vcr: Option<&str>) -> SysrootConfig {
+        SysrootConfig {
+            tag: "17".into(),
+            manifest: 17,
+            channel: "release".into(),
+            archs,
+            variants: Vec::new(),
+            features: vec![Feature::Debug],
+            sdk: "10.0.26100".into(),
+            crt: "14.44.17.14".into(),
+            vcr: vcr.map(ToOwned::to_owned),
+        }
+    }
+
+    #[test]
+    fn winepath_for_a_single_architecture() {
+        let (_dir, paths) = temp_paths();
+        let cfg = sysroot_cfg(vec![Arch::X86_64], Some("14.44.35211"));
+
+        assert_eq!(
+            winepath(&paths, &cfg, "14.44.35211"),
+            paths
+                .sysroot
+                .join("VCR/14.44.35211/bin/x86_64")
+                .display()
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn winepath_for_a_mixed_sysroot() {
+        let (_dir, paths) = temp_paths();
+        let cfg = sysroot_cfg(vec![Arch::X86_64, Arch::X86], Some("14.44.35211"));
+
+        assert_eq!(
+            winepath(&paths, &cfg, "14.44.35211"),
+            format!(
+                "{};{}",
+                paths.sysroot.join("VCR/14.44.35211/bin/x86_64").display(),
+                paths.sysroot.join("VCR/14.44.35211/bin/x86").display()
+            )
+        );
+    }
+
+    #[test]
+    fn winepath_resolves_through_the_sysroot_not_the_cache() {
+        let (_dir, paths) = temp_paths();
+        let cfg = sysroot_cfg(vec![Arch::X86_64], Some("14.44.35211"));
+
+        let value = winepath(&paths, &cfg, "14.44.35211");
+        assert!(value.starts_with(&paths.sysroot.display().to_string()));
+        assert!(!value.contains(&paths.cache_dir.display().to_string()));
+        // a directory, not a file
+        assert!(!value.ends_with(".dll"));
+    }
+
+    #[test]
+    fn winepath_follows_the_configured_architecture_order() {
+        let (_dir, paths) = temp_paths();
+        let cfg = sysroot_cfg(vec![Arch::X86, Arch::X86_64], Some("14.44.35211"));
+
+        assert_eq!(
+            winepath(&paths, &cfg, "14.44.35211"),
+            format!(
+                "{};{}",
+                paths.sysroot.join("VCR/14.44.35211/bin/x86").display(),
+                paths.sysroot.join("VCR/14.44.35211/bin/x86_64").display()
+            )
+        );
     }
 }
