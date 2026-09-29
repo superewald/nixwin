@@ -1,5 +1,7 @@
 /target
 /.nixwin
+/site
+/.cache
 build/
 target/
 home/

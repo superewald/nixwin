@@ -1,0 +1,35 @@
+# The two forward links, docs/install/index.html and docs/download/latest/index.html,
+# are committed redirect pages rather than a redirects plugin map: zensical
+# 0.0.51 has no redirects plugin and ignores plugin configuration silently.
+[project]
+site_name = "nixwin"
+site_url = "https://superewald.github.io/nixwin"
+docs_dir = "docs"
+strict = true
+edit_uri = "edit/main/docs/"
+nav = [
+  { Home = "index.md" },
+  { Sysroots = "sysroots.md" },
+  { Reference = [
+    { Commands = "cli.md" },
+    { "Configuration and environment" = "configuration.md" },
+    { Lockfiles = "lockfiles.md" },
+  ] },
+  { "Tool integration" = [
+    { "clang-cl and lld-link" = "llvm.md" },
+    { CMake = "cmake.md" },
+    { "cargo and rustc" = "cargo.md" },
+    { wine = "wine.md" },
+  ] },
+  { "Container images" = "docker.md" },
+]
+
+[project.markdown_extensions]
+admonition = {}
+tables = {}
+toc = { permalink = true }
+pymdownx.details = {}
+pymdownx.superfences = {}
+
+[project.extra]
+social = [{ icon = "fontawesome/brands/github", link = "https://github.com/superewald/nixwin", name = "nixwin on GitHub" }]
