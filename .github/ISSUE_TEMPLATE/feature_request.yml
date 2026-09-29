@@ -1,0 +1,73 @@
+name: Feature request
+description: Suggest a capability nixwin does not have yet
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem you are trying to solve, not the solution you have
+        in mind. A solution built on a clearly stated problem is easier to agree
+        on, and often has a better answer than the first idea.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: |
+        The task, in your own words. What are you doing today, and what makes it
+        hard, slow or impossible?
+      placeholder: |
+        I want to build two different projects against different sysroots in the
+        same CI job without a container per project.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: Workarounds, flags, scripts or other tools you have used.
+      placeholder: |
+        Currently I run the job twice with different NIXWIN_DATA directories,
+        which doubles the download.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this concern?
+      multiple: true
+      options:
+        - Sysroot install
+        - Sysroot management (ls, rm, config)
+        - Tool integration (clang-cl, CMake, cargo, wine)
+        - Lockfiles
+        - Container images
+        - Install script
+        - Documentation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: |
+        Optional. What the result would look like when the problem is solved.
+        Frame it as the capability you want rather than the API you expect.
+      placeholder: |
+        A flag which selects the sysroot for a single command, without changing
+        the machine default.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the existing issues and discussions for this.
+          required: true

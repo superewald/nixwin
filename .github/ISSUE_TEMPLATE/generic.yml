@@ -1,0 +1,30 @@
+name: Something else
+description: Anything that is not a bug report or a feature request
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for questions, documentation gaps, build or CI
+        questions, and anything else. If it is a defect, the bug report template
+        gets you a faster answer.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is this about, in a sentence or two?
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Detail
+      description: |
+        Context, what you have already tried, and the outcome you expected.
+        Include commands and output where they help.
+      render: shell
+    validations:
+      required: false
