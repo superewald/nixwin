@@ -3,8 +3,8 @@
 A windows sysroot contains necessary sources and libraries to cross-compile c/c++/rust targeting windows on unix hosts. Additionally, nixwin adds convenience scripts and configurations for seamless integration into common developer tools.
 
 - nixwin supports coexisting sysroots for different target environments with efficient caching
-- sysroots reside in `$NIXWIN_DATA/sysroots` and symlink against the shared cache `$NIXWIN_CACHE`. 
-- every sysroot has a tag assigned for identification which resolves to `$NIXWIN_DATA/sysroots/$TAG`. 
+- sysroots reside in `$NIXWIN_DATA/sysroots` and symlink against the shared cache `$NIXWIN_CACHE`.
+- every sysroot has a tag assigned for identification which resolves to `$NIXWIN_DATA/sysroots/$TAG`.
 
 ## managing sysroots
 
@@ -52,14 +52,16 @@ The `debug` feature is enabled by default unless a CI environment is detected.
 
 Nixwin adds convenience configurations to integrate the windows sysroot with common developer tools.
 
-| file | tools | details |
-|---|---|---|
-| `vfsoverlay.json` | clang/lld-link | A vfsoverlay file for the windows sysroot which avoids issues with filesystem case-sensitivity. |
-| `llvm.env` | clang/lld-link | Configures clang/lld-link using `CFLAGS`/`CXXFLAGS`. |
-| `toolchain.cmake` | cmake | Provides a cross-compilation toolchain for CMake using llvm. |
-| `cmake.env` | cmake | Configures cmake using `toolchain.cmake` and `vfsoverlay.json`. |
-| `rustc.env` | rustc/cargo | Configures rustc using `RUSTFLAGS`/`CFLAGS`/`CXXFLAGS` |
+| file | tools | details | guide |
+|---|---|---|---|
+| `vfsoverlay.json` | clang/lld-link | A vfsoverlay file for the windows sysroot which avoids issues with filesystem case-sensitivity. | |
+| `llvm.env` | clang/lld-link | Configures clang/lld-link using `CFLAGS`/`CXXFLAGS`. | [clang-cl and lld-link](./llvm.md) |
+| `toolchain.cmake` | cmake | Provides a cross-compilation toolchain for CMake using llvm. | [CMake](./cmake.md) |
+| `cmake.env` | cmake | Configures cmake using `toolchain.cmake` and `vfsoverlay.json`. | [CMake](./cmake.md) |
+| `rustc.env` | rustc/cargo | Configures rustc using `RUSTFLAGS`/`CFLAGS`/`CXXFLAGS` | [cargo and rustc](./cargo.md) |
 
+`nixwin setup --cmake` additionally writes a lockfile-aware toolchain *wrapper* to
+`$NIXWIN_DATA/toolchain.cmake`; see [CMake](./cmake.md#the-lockfile-aware-wrapper).
 
 ### wine
 
@@ -67,24 +69,26 @@ Nixwin adds convenience configurations to integrate the windows sysroot with com
 
 Like the other setup exports, the `WINEPATH` export is written to your shell rc in its own block (`# >>> nixwin (wine) >>>`) and is only picked up by shells started afterwards.
 
-> [!IMPORTANT]
-> The export is scoped to the shell session it is sourced in. Processes which are not started from that shell, such as a graphical session or a service which was already running when `nixwin setup` ran, do not see it. Start them from a shell, or export `WINEPATH` yourself.
+!!! important
+    The export is scoped to the shell session it is sourced in. Processes which are not started from that shell, such as a graphical session or a service which was already running when `nixwin setup` ran, do not see it. Start them from a shell, or export `WINEPATH` yourself.
 
-> [!NOTE]
-> Nixwin no longer copies DLLs into a wine prefix. Prefixes which were populated by earlier nixwin versions keep those copies; they are not cleaned up automatically, so remove them yourself if you want the prefix to only use the sysroot's libraries.
+!!! note
+    Nixwin no longer copies DLLs into a wine prefix. Prefixes which were populated by earlier nixwin versions keep those copies; they are not cleaned up automatically, so remove them yourself if you want the prefix to only use the sysroot's libraries.
 
+The [wine guide](./wine.md) covers running debug binaries, including how to set
+`WINEPATH` for a single command or a CI job.
 
-## environment variables
+## paths
+
+The full list of variables nixwin reads is in
+[configuration and environment](./configuration.md). The three that matter
+most:
 
 | variable | description | default |
 |---|---|---|
-| `NIXWIN_SYSROOT` | path to default sysroot | `$NIXWIN_DATA/sysroot` |
-| `NIXWIN_SYSROOTS` | path to sysroot directories | `$NIXWIN_DATA/sysroots` |
-| `NIXWIN_CACHE` | path to cache directory | `$HOME/.cache/nixwin` |
-| `NIXWIN_CACHE_MSVC` | path to msvc cache dir | `$NIXWIN_CACHE/VC/Tools/MSVC` |
-| `NIXWIN_CACHE_SDK` | path to sdk cache dir | `$NIXWIN_CACHE/Windows Kits/10` |
-| `NIXWIN_CACHE_VCR` | path to vcr cache dir | `$NIXWIN_CACHE/VCR` |
-| `NIXWIN_DATA` | path to data directory | `$HOME/.local/share/nixwin` |
+| `NIXWIN_SYSROOT` | path to the default sysroot, a symlink into `sysroots/` | `$NIXWIN_DATA/sysroot` |
+| `NIXWIN_SYSROOTS` | path to the tagged sysroot directories | `$NIXWIN_DATA/sysroots` |
+| `NIXWIN_DATA` | path to the data directory | `$HOME/.local/share/nixwin` |
 
 `nixwin setup` writes the paths it resolved for this machine into your shell rc (`~/.zshrc` or `~/.bashrc`), no flag required:
 
@@ -98,11 +102,11 @@ export NIXWIN_CACHE="$HOME/.cache/nixwin"
 
 `CMAKE_TOOLCHAIN_FILE` is written to a separate block (`# >>> nixwin (cmake) >>>`) and only by `nixwin setup --cmake`.
 
-> [!WARNING]
-> Both blocks are rewritten on every `nixwin setup` run, so a changed `--data-dir` or `--cache-dir` is picked up. Hand edits between the markers are lost on the next run, keep your own exports outside of the block. If nixwin cannot detect a shell rc it prints the exports to add to your profile instead.
+!!! warning
+    Both blocks are rewritten on every `nixwin setup` run, so a changed `--data-dir` or `--cache-dir` is picked up. Hand edits between the markers are lost on the next run, keep your own exports outside of the block. If nixwin cannot detect a shell rc it prints the exports to add to your profile instead.
 
-> [!NOTE]
-> The exports reflect the last `nixwin setup` run. Passing `--data-dir`/`--cache-dir` to an individual command still wins for that command, but the shell is not updated until setup runs again.
+!!! note
+    The exports reflect the last `nixwin setup` run. Passing `--data-dir`/`--cache-dir` to an individual command still wins for that command, but the shell is not updated until setup runs again.
 
 ## cache directory layout
 

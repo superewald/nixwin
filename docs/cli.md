@@ -1,5 +1,24 @@
 # Commands
 
+`nixwin` has six subcommands. Every one of them accepts the global flags below,
+in addition to its own options.
+
+## global flags
+
+| flag | description | overrides |
+|---|---|---|
+| `--data-dir <PATH>` | data directory for this invocation | `NIXWIN_DATA` |
+| `--cache-dir <PATH>` | cache directory for this invocation | `NIXWIN_CACHE` |
+| `--config <PATH>` | read the configuration from a specific `.nixwin.json` | `$CWD/.nixwin.json` |
+| `-h`, `--help` | print help for the command | |
+| `-V`, `--version` | print the nixwin version | |
+
+`--data-dir` and `--cache-dir` apply to the single command they are passed to
+and do not update the exports in your shell; run `nixwin setup` for that.
+`--config` selects which lockfile `nixwin install` resolves from. See
+[configuration and environment](./configuration.md) for the variables these
+flags shadow and the full resolution order.
+
 ## setup
 
 **Synopsis**: `nixwin setup [OPTIONS]`
@@ -98,8 +117,8 @@ nixwin config tpl.toolchain /path/to/custom/toolchain.tpl
 | `cmake` / `wine` | integration flags (set by `setup`) | `true`/`false` |
 | `tpl.<name>` | template override for an emitted file | `toolchain`, `cmake`, `rustc`, `llvm`, `cmake-wrapper` |
 
-> [!NOTE]
-> The architecture key is spelled `default.arches` on the command line but is stored as `archs` in `config.json`. Use `default.arches` with `nixwin config`; hand-editing the JSON requires `archs`.
+!!! note
+    The architecture key is spelled `default.arches` on the command line but is stored as `archs` in `config.json`. Use `default.arches` with `nixwin config`; hand-editing the JSON requires `archs`.
 
 ## ls
 
@@ -136,11 +155,11 @@ nixwin rm 17 -a aarch64 -f atl --variants spectre
 
 Components which are not part of the sysroot are reported and skipped, so the command is safe to re-run. Removing every architecture is rejected, because a sysroot without architectures cannot be linked.
 
-> [!NOTE]
-> Removing `atl` or a variant updates the sysroot's configuration and therefore applies to *future* installs, it does not remove the files which are currently in the sysroot. Their files are reached through directories which are linked as a whole, so there is nothing to unlink per feature or variant.
+!!! note
+    Removing `atl` or a variant updates the sysroot's configuration and therefore applies to *future* installs, it does not remove the files which are currently in the sysroot. Their files are reached through directories which are linked as a whole, so there is nothing to unlink per feature or variant.
 
-> [!IMPORTANT]
-> List-valued components are the union of the installed configuration, the project lockfile and the flags when installing (see [lockfiles](./lockfiles.md#how-lockfiles-are-used)). A `.nixwin.json` which still lists a removed component therefore brings it back on the next `nixwin install`. Update the project lockfile in the same change as the removal.
+!!! important
+    List-valued components are the union of the installed configuration, the project lockfile and the flags when installing (see [lockfiles](./lockfiles.md#how-lockfiles-are-used)). A `.nixwin.json` which still lists a removed component therefore brings it back on the next `nixwin install`. Update the project lockfile in the same change as the removal.
 
 The rebuild re-runs the same steps as `nixwin install` (the symlink view, then the integration files), so the sysroot's `.nixwin.json` and its integration files stay in sync with the reduced configuration.
 
