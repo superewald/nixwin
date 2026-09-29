@@ -9,114 +9,155 @@ Create reproducible windows sysroots ready for cross-compiling C/C++/Rust with i
 - want to cross-compile c/c++/rust targeting windows on unix hosts?
 - want faster CI compilation times when compiling for windows?
 
-Nixwin comes to the rescue! 
+Nixwin comes to the rescue!
 
 The windows sysroot files are downloaded from the Visual Studio manifest and composed using [xwin]. Nixwin adds efficiency with a caching layer, consistency through configuration and improves UX by providing integration with common developer tools.
 
-## install nixwin
-
-Download the latest release from [github releases](https://github.com/superewald/nixwin/releases/latest/) and run `nixwin setup`.
+## quickstart
 
 ```sh
-curl -o $HOME/.local/bin/nixwin -L 	https://github.com/superewald/nixwin/releases/latest/download/nixwin-x86_64-musl && \
-nixwin setup --wine --cmake # optional, recommended
+# 1. install the binary into ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/superewald/nixwin/main/install.sh | bash
+
+# 2. create the data/cache directories and export them to your shell
+nixwin setup
+
+# 3. install a sysroot and make it the default
+nixwin install 17 --default
+
+# 4. cross-compile
+./examples/llvm/build.sh
 ```
 
+Step 4 produces `windows-example.exe` and runs it under wine if wine is
+installed. `nixwin setup` writes to your shell rc, so **open a new shell** (or
+`source ~/.zshrc`) before step 3 if you ran step 2 in an existing one.
 
-> [!NOTE]
-> - `nixwin setup` exports `NIXWIN_SYSROOT`, `NIXWIN_DATA` and `NIXWIN_CACHE` in your shell rc (*see [sysroot/environment variables](./docs/sysroots.md#environment-variables)*)
-> - `nixwin setup --cmake` additionally sets `CMAKE_TOOLCHAIN_FILE` in your shell rc
-> - `nixwin setup --wine` exports `WINEPATH` in your shell rc, so wine resolves the VCR debug libraries of the default sysroot. The export is scoped to your shell session, processes started outside of it are unaffected (*see [sysroot/wine](./docs/sysroots.md#wine)*)
-> - `--cmake` let's cmake detect [lockfiles] and use their [sysroot toolchains](./docs/sysroots.md#tool-integration).
+Prefer a specific release over the latest, or a different install directory? See
+[`install.sh --help`](./install.sh), or the
+[install script docs](https://superewald.github.io/nixwin/#quick-install).
 
-> [!WARNING]
-> The nixwin block in your shell rc is rewritten on every `nixwin setup` run to pick up changed paths. Do not edit anything between the `# >>> nixwin >>>` and `# <<< nixwin <<<` markers, your changes are lost on the next run.
+## what's inside a sysroot
 
+A [sysroot](./docs/sysroots.md) holds the Windows SDK and MSVC CRT headers,
+import libraries and static libraries, laid out the way `clang-cl` expects, plus
+a `vfsoverlay.json` that makes case-insensitive Windows includes resolve on a
+case-sensitive host. By default it contains only what a release build needs; add
+`--features debug` for debug libraries and the VCR debug runtime.
+
+> The `debug` feature is on by default unless a CI environment is detected.
 
 ## manage sysroots
 
-[Windows sysroots](./docs/sysroots.md) contain necessary files for compiling windows applications (SDK/CRT/VCR headers & libraries). Nixwin provides an efficient interface to install and configure sysroots.
+Sysroots are tagged and share one component cache, so keeping several around
+costs disk only for what actually differs.
 
 ```sh
-# install sysroot with latest SDK, CRT and VCR from VS17 manifest
-nixwin install 17
-# add ATL headers to sysroot
-nixwin install 17 --features atl
+nixwin ls                          # list installed sysroots
+nixwin inspect 17                  # versions, arches, features of one sysroot
+nixwin config default.tag 17       # switch which sysroot is the default
+nixwin install 17 --features atl   # add a feature to an existing sysroot
+nixwin rm 17                       # remove a whole sysroot
+nixwin rm 17 -a aarch64            # or just one architecture from it
 ```
 
-> [!TIP] If you need specific versions use `--manifest`, `--sdk` and `--crt`. See [version pinning](./docs/sysroots.md#version-pinning).
+> Need exact versions? Use `--manifest`, `--sdk` and `--crt`. See
+> [version pinning](./docs/sysroots.md#version-pinning).
 
-## cross-compile
+## tool integration
 
-Beside the files from VS store, nixwin sysroots contain integration files for clang-cl, cmake and rustc for convenience.
+Alongside the component files, each sysroot emits integration files so a build
+is configured by sourcing one file instead of assembling flags by hand.
 
-> The `NIXWIN_SYSROOT` environment variable is set to the default sysroot and only available after `nixwin setup`.
-
-### clang-cl
+| file | tools | guide |
+|---|---|---|
+| `llvm.env` | clang-cl + lld-link | [clang-cl and lld-link](./docs/llvm.md) |
+| `toolchain.cmake`, `cmake.env` | cmake | [CMake](./docs/cmake.md) |
+| `rustc.env` | rustc/cargo | [cargo and rustc](./docs/cargo.md) |
+| `WINEPATH` (via `nixwin setup --wine`) | wine | [wine](./docs/wine.md) |
 
 ```sh
-cd examples/llvm
 source $NIXWIN_SYSROOT/llvm.env
 clang-cl $NIXWIN_LLVM_FLAGS main.cpp -o windows-example.exe
 ```
 
-### cmake
+`nixwin setup --cmake` additionally writes a *wrapper* toolchain that picks the
+sysroot a project's lockfile names, so `cmake -B build` needs no flags at all.
+See [the lockfile-aware wrapper](./docs/cmake.md#the-lockfile-aware-wrapper).
+
+> `NIXWIN_SYSROOT` points at the default sysroot and is only set after
+> `nixwin setup`.
+
+### environment quicksheet
+
+| variable | what it does |
+|---|---|
+| `NIXWIN_SYSROOT` | the default sysroot; the tools above are generated for it |
+| `NIXWIN_DATA` | installed sysroots and the machine config |
+| `NIXWIN_CACHE` | shared component cache, reused by every sysroot |
+
+> The nixwin block in your shell rc is rewritten on every `nixwin setup` run, so
+> a changed `--data-dir` or `--cache-dir` is picked up. Do not edit anything
+> between the `# >>> nixwin >>>` and `# <<< nixwin <<<` markers, your changes are
+> lost on the next run. The full list, including the ones `nixwin` writes
+> (`CMAKE_TOOLCHAIN_FILE`, `WINEPATH`), is in
+> [configuration and environment](./docs/configuration.md).
+
+## lockfiles
+
+A lockfile is a `.nixwin.json` which pins a sysroot to exact component versions.
+Commit it and every machine — including CI — installs the same bytes.
 
 ```sh
-cd examples/cmake
-source $NIXWIN_SYSROOT/cmake.env # not necessary with `nixwin setup --cmake`
-cmake -S . -B build
-cmake --build build
+nixwin install 17 --lock   # write .nixwin.json into the current directory
+nixwin install             # in another clone: install exactly what it pins
 ```
 
-### rustc
+> List-valued components (architectures, variants, features) are the *union* of
+> the lockfile, the flags and the installed sysroot, so a lockfile which still
+> lists a component you removed with `nixwin rm` brings it back. Update the
+> lockfile in the same change as the removal. See
+> [docs/lockfiles.md](./docs/lockfiles.md).
 
-```sh
-cd examples/rustc
-source $NIXWIN_SYSROOT/rustc.env
-cargo build -C examples/rustc --target x86_64-pc-windows-msvc
-```
+## CI
 
-## Lockfiles
+Nixwin is designed to run efficiently in CI and lets you skip heavy Windows
+container images. Set `--cache-dir` (`$NIXWIN_CACHE`) and `--data-dir`
+(`$NIXWIN_DATA`) to a cacheable location so successive jobs reuse the downloaded
+components, and hash `.nixwin.json` into the cache key so it is invalidated when
+the pinned versions change.
 
-A lockfile is a `.nixwin.json` file which pins a sysroot to a fully resolved set of components.. Commit a lockfile to version control to make installs reproducible across machines and CI runs.
-
-```sh
-nixwin install 17 --lock
-```
-
-```sh
-git clone https://github.com/superewald/nixwin
-cd nixwin/examples/
-nixwin install
-nixwin install --lock --features atl
-git commit -m "chore: added ATL to nixwin sysroot"
-```
-
-> See [docs/lockfiles.md](./docs/lockfiles.md)
+- [GitHub CI](./examples/.github.ci.yml)
+- [GitLab CI](./examples/.gitlab.ci.yml)
 
 ## Docker/Podman
 
-Nixwin provides docker images with bundled sysroots for all supported VS manifest versions (16/17/18).
+Prebuilt images bundle a sysroot with the common compilation tools, one per
+supported VS manifest version (16/17/18) with `-alpine`, `-debug`, `-wine` and
+`-aarch` flavors. The images are built outside this repository, so there is no
+Dockerfile here to build from.
 
 ```sh
 docker run --rm -it \
 	-v $PWD/examples/llvm:/app \
 	-v $PWD/nixwin-data:/share/nixwin \
-	superewald/nixwin:17 
-	
+	nixwin:17
 ```
 
-> See [docker](./docker/README.md).
+> See [container images](./docs/docker.md) for the full tag list and a CI
+> example.
 
-## CI
+## documentation
 
-Nixwin is designed to run efficiently in CI and allows to skip heavy windows docker images. For use in CI, it is recommended to explicitly set `--cache-dir` (`$NIXWIN_CACHE`) and `--data-dir` (`$NIXWIN_DATA`) to create cacheable and reproducible windows sysroots. 
+The full documentation is published at **[nixwin documentation site](https://superewald.github.io/nixwin/)**
+and built from [`docs/`](./docs):
 
-You can install nixwin manually into your CI containers but it is recommended to use the [nixwin container images](#dockerpodman).
-
-- [GitHub CI](./examples/.github.ci.yml)
-- [GitLab CI](./examples/.gitlab.ci.yml)
+- [Sysroots](./docs/sysroots.md) — contents, layout on disk, managing several
+- [Command reference](./docs/cli.md) — every command and flag
+- [Configuration and environment](./docs/configuration.md) — variables and `nixwin config` keys
+- [Lockfiles](./docs/lockfiles.md) — reproducible installs
+- [Tool integration](./docs/llvm.md) — [clang-cl](./docs/llvm.md), [CMake](./docs/cmake.md), [cargo](./docs/cargo.md), [wine](./docs/wine.md)
+- [Container images](./docs/docker.md)
+- [Examples](./examples/README.md) — one cross-compiled program per toolchain
 
 [xwin]: https://github.com/jake-shadle/xwin
-[lockfiles]: ./docs/lockfiles.md
